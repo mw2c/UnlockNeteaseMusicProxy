@@ -36,6 +36,11 @@ def needModifyPlayerApi(url):
         return True
     return False
 
+def needModifyDownloadApi(url):
+    if "/eapi/song/enhance/download/url" in url:
+        return True
+    return False
+
 def getUrl(songId, quality):
     dfsId = getDfsId(getPage("http://music.163.com/api/song/detail?id=" + songId + "&ids=[" + songId + "]"), quality)
     return generateUrl(dfsId)
@@ -93,6 +98,15 @@ def modifyDetailApi(str):
     str = rexSubp.sub('"subp":1', str)
     return str
 
+def modifyDownloadApi(str):
+    obj = json.loads(str)
+    songId = json.dumps(obj["data"]["id"])
+    newUrl = getUrl(songId, "hMusic")
+    obj["data"]["url"] = newUrl
+    obj["data"]["br"] = "320000"
+    obj["data"]["code"] = "200"
+    return json.dumps(obj)
+
 class MitmProxyClient(ProxyClient):
     def __init__(self, *args, **kwargs):
         self.buf = ""
@@ -109,7 +123,7 @@ class MitmProxyClient(ProxyClient):
 
     def handleResponsePart(self, buffer):
         url = self.father.uri
-        if needModifyPlayerApi(url) or needModifyDetailApi(url):
+        if needModifyPlayerApi(url) or needModifyDetailApi(url) or needModifyDownloadApi(url):
             self.buf += buffer
         else:
             ProxyClient.handleResponsePart(self, buffer)
@@ -124,13 +138,11 @@ class MitmProxyClient(ProxyClient):
             content = self.buf
         if needModifyDetailApi(url):
             content = modifyDetailApi(content)
-            if self.gziped == True:
-                ProxyClient.handleResponsePart(self, compress(content))
-            else:
-                ProxyClient.handleResponsePart(self, content)
         elif needModifyPlayerApi(url):
-            print content
             content = modifyPlayerApi(content)
+        elif needModifyDownloadApi(url):
+            content = modifyDownloadApi(content)
+        if self.buf != "":
             if self.gziped == True:
                 ProxyClient.handleResponsePart(self, compress(content))
             else:
